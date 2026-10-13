@@ -102,10 +102,74 @@ uv run python -m pytest -k "psi or ks or verdict or table" -v
 
 - **Q4** (PSI vs KS, effet de la taille d'échantillon) : _à rédiger_
 
+## Étapes 3 à 5 — Audit des entrées, sans labels
+
+```powershell
+uv run python scripts/drift_lab.py --semaine 1   # puis 2, puis 3
+```
+
+Fichiers produits (non versionnés) : `reports/drift_semaine{1,2,3}.csv`,
+`reports/figures/drift_s{1,2,3}_<feature>.png`. Comparaison : 20 000 transactions de référence vs
+3 000 par semaine, 10 bins.
+
+### Semaine 1 (étape 3)
+
+| Feature | PSI | p-value KS | Verdict |
+|---|---|---|---|
+| anciennete_client_j | 0,008 | 8,51e-02 | RAS |
+| montant_eur | 0,005 | 9,74e-01 | RAS |
+| nb_articles | 0,004 | 3,93e-01 | RAS |
+| heure | 0,002 | 7,37e-01 | RAS |
+| distance_domicile_km | 0,002 | 7,06e-01 | RAS |
+
+PSI max = 0,008. Les p-values KS sont dispersées entre 0,09 et 0,97, et aucune n'est inférieure à 0,05.
+
+- **Q5** (PSI max, verdicts, bulletin) : _à rédiger_
+- **Q6** (p-values ≠ 1, tests multiples) : _à rédiger_
+
+### Semaine 2 — Vente Flash de rentrée (étape 4)
+
+| Feature | PSI | p-value KS | Verdict |
+|---|---|---|---|
+| nb_articles | 0,471 | 1,00e-163 | dérive forte |
+| montant_eur | 0,370 | 1,24e-187 | dérive forte |
+| anciennete_client_j | 0,311 | 3,92e-96 | dérive forte |
+| heure | 0,087 | 1,43e-33 | RAS |
+| distance_domicile_km | 0,002 | 1,92e-01 | RAS |
+
+Ce que montrent les figures :
+- `nb_articles` : moins de paniers à 1 ou 2 articles, nettement plus à 4, 5, 6 ou 7 articles.
+- `montant_eur` : distribution décalée vers la droite, avec une queue plus épaisse au-delà de 60 €.
+- `anciennete_client_j` : plus de comptes récents (moins de 250 jours), moins de clients anciens.
+- `heure` : creux en milieu de journée, pic de transactions entre 20 h et 23 h.
+- `distance_domicile_km` : inchangée.
+
+Pour `heure`, le PSI (0,087 < 0,10) donne RAS, alors que KS donne p ≈ 1e-33 : c'est le cas de Q8.
+
+- **Q7** (classement, seuils 0,25 / 0,10, explication par la Vente Flash) : _à rédiger_
+- **Q8** (heure : PSI ou KS ?) : _à rédiger_
+- **Q9** (feature en dérive mais peu contributive) : _à rédiger_
+- **Q10** (décision sans labels) : _à rédiger_
+
+### Semaine 3 (étape 5)
+
+| Feature | PSI | p-value KS | Verdict |
+|---|---|---|---|
+| anciennete_client_j | 0,006 | 7,08e-01 | RAS |
+| montant_eur | 0,003 | 1,48e-01 | RAS |
+| heure | 0,003 | 8,19e-01 | RAS |
+| nb_articles | 0,001 | 1,00e+00 | RAS |
+| distance_domicile_km | 0,001 | 1,76e-01 | RAS |
+
+PSI max = 0,006 : les entrées sont aussi calmes qu'en semaine 1.
+
+- **Q11** (bulletin sur la seule foi du PSI) : _à rédiger_
+- **Q12** (le silence prouve-t-il que le modèle va bien ?) : _à rédiger_
+
 ## Étapes suivantes
 
-- [ ] Étape 3 — semaine 1 (Q5, Q6)
-- [ ] Étape 4 — semaine 2, Vente Flash (Q7 – Q10)
-- [ ] Étape 5 — semaine 3 (Q11, Q12)
+- [x] Étape 3 — semaine 1
+- [x] Étape 4 — semaine 2, Vente Flash
+- [x] Étape 5 — semaine 3
 - [ ] Étape 6 — labels, `evaluate_semaine.py`, 12 tests verts (Q13 – Q18)
 - [ ] Étape 7 — `reports/drift_spec_payguard.md`

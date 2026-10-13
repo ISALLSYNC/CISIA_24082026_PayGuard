@@ -58,9 +58,12 @@ def psi(ref, cur, bins: int = 10) -> float:
     """
     ref = np.asarray(ref, dtype=float)
     cur = np.asarray(cur, dtype=float)
-    # TODO 🧑‍🎓 : calculer les bords de bins sur la référence, en ouvrant les extrêmes,
-    #             puis les proportions p_ref / p_cur (+ 1e-6), puis la somme PSI.
-    raise NotImplementedError("À compléter — étape 2 du TP (fonction psi)")
+    # Bords calculés sur la référence ; extrêmes ouverts pour compter les valeurs hors plage
+    edges = np.histogram_bin_edges(ref, bins=bins)
+    edges[0], edges[-1] = -np.inf, np.inf
+    p_ref = np.histogram(ref, edges)[0] / len(ref) + 1e-6
+    p_cur = np.histogram(cur, edges)[0] / len(cur) + 1e-6
+    return float(np.sum((p_cur - p_ref) * np.log(p_cur / p_ref)))
 
 
 def ks_pvalue(ref, cur) -> float:
@@ -70,8 +73,7 @@ def ks_pvalue(ref, cur) -> float:
     p élevée → rien ne permet de dire qu'elles diffèrent.
     (indice : scipy.stats.ks_2samp — regardez l'attribut .pvalue du résultat)
     """
-    # TODO 🧑‍🎓 : une à deux lignes suffisent.
-    raise NotImplementedError("À compléter — étape 2 du TP (fonction ks_pvalue)")
+    return float(stats.ks_2samp(ref, cur).pvalue)
 
 
 def drift_table(df_ref: pd.DataFrame, df_cur: pd.DataFrame, features=FEATURES, bins: int = 10) -> pd.DataFrame:
@@ -81,9 +83,17 @@ def drift_table(df_ref: pd.DataFrame, df_cur: pd.DataFrame, features=FEATURES, b
     La table doit être triée par PSI décroissant (les features qui dérivent
     le plus en premier) et réindexée (reset_index(drop=True)).
     """
-    # TODO 🧑‍🎓 : boucler sur les features, appeler psi() / ks_pvalue() / verdict_psi(),
-    #             construire le DataFrame, trier, retourner.
-    raise NotImplementedError("À compléter — étape 2 du TP (fonction drift_table)")
+    lignes = []
+    for f in features:
+        valeur = psi(df_ref[f], df_cur[f], bins=bins)
+        lignes.append({
+            "feature": f,
+            "psi": valeur,
+            "ks_pvalue": ks_pvalue(df_ref[f], df_cur[f]),
+            "verdict": verdict_psi(valeur),
+        })
+    table = pd.DataFrame(lignes, columns=["feature", "psi", "ks_pvalue", "verdict"])
+    return table.sort_values("psi", ascending=False).reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------

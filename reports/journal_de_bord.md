@@ -240,4 +240,7 @@ Suite complète : **12 passed** (definition of done atteinte côté code).
 - [x] Étape 4 — semaine 2, Vente Flash
 - [x] Étape 5 — semaine 3
 - [x] Étape 6 — labels, `evaluate_semaine.py`, 12 tests verts
-- [ ] Étape 7 — `reports/drift_spec_payguard.md`
+- [x] Étape 7 — [`reports/drift_spec_payguard.md`](drift_spec_payguard.md) : les six éléments
+  exigés (référence, fenêtre et fréquence, seuils, KPI métier, réactions, limites connues), avec
+  les chiffres des étapes 1 à 6.
+- [ ] Réponses Q1 – Q18

@@ -166,10 +166,78 @@ PSI max = 0,006 : les entrées sont aussi calmes qu'en semaine 1.
 - **Q11** (bulletin sur la seule foi du PSI) : _à rédiger_
 - **Q12** (le silence prouve-t-il que le modèle va bien ?) : _à rédiger_
 
+## Étape 6 — Les labels arrivent (`scripts/evaluate_semaine.py`)
+
+### Code ajouté dans `evaluer_semaine()`
+
+```python
+y_pred = (proba >= seuil).astype(int)
+tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+accuracy = (tp + tn) / len(y_true)
+precision = tp / (tp + fp) if (tp + fp) else 0.0
+rappel = tp / (tp + fn) if (tp + fn) else 0.0
+pr_auc = float(average_precision_score(y_true, proba))
+roc_auc = float(roc_auc_score(y_true, proba))
+```
+
+- **Décision au seuil gelé (0,03)** : une transaction est en alerte si `proba ≥ seuil`. On ne
+  rechoisit pas le seuil sur la production : il a été fixé sur la validation (étape 1).
+- **Matrice de confusion** : `labels=[0, 1]` garantit une matrice 2×2 même si une classe était
+  absente ; `.ravel()` donne l'ordre TN, FP, FN, TP.
+- **Métriques recalculées à la main** :
+  - accuracy = (TP + TN) / n ;
+  - précision = TP / (TP + FP), part des alertes qui sont de vraies fraudes ;
+  - rappel = TP / (TP + FN), part des fraudes attrapées.
+  - Les divisions par zéro renvoient 0,0.
+- **PR-AUC et ROC-AUC** : calculées sur les **probabilités**, pas sur `y_pred`. Elles mesurent la
+  qualité du classement des transactions, indépendamment du seuil.
+
+### Résultats (`reports/suivi_semaines.csv`)
+
+```powershell
+uv run python scripts/evaluate_semaine.py --semaine 1   # puis 2, puis 3
+```
+
+| Semaine | Taux de fraude | Taux d'alerte | TN / FP / FN / TP | Accuracy | Précision | Rappel | PR-AUC | ROC-AUC |
+|---|---|---|---|---|---|---|---|---|
+| Validation (étape 1) | 4,48 % | 27,98 % | 3560 / 1216 / 41 / 183 | — | 0,131 | 0,817 | 0,260 | 0,852 |
+| 1 | 4,37 % | 27,60 % | 2144 / 725 / 28 / 103 | 0,749 | 0,124 | 0,786 | 0,319 | 0,851 |
+| 2 | 11,23 % | 56,60 % | 1276 / 1387 / 26 / 311 | 0,529 | 0,183 | 0,923 | 0,394 | 0,824 |
+| 3 | 5,57 % | 27,40 % | 2023 / 810 / 155 / 12 | 0,678 | 0,015 | 0,072 | 0,035 | 0,278 |
+
+Faits marquants :
+- **Semaine 1** : métriques proches de la validation.
+- **Semaine 2** :
+  - Le taux de fraude est multiplié par environ 2,5 (11,2 %).
+  - Le taux d'alerte double : environ 1 700 dossiers au lieu de 830.
+  - Le rappel reste élevé (0,92) et la ROC-AUC quasi stable (0,82).
+- **Semaine 3** :
+  - Le taux d'alerte reste normal (27,4 %).
+  - Le rappel s'effondre, de 0,79 à 0,07 : 12 fraudes attrapées sur 167.
+  - La ROC-AUC tombe à 0,278, sous le hasard.
+  - L'accuracy (0,678) baisse beaucoup moins que le rappel.
+
+### Validation
+
+```powershell
+uv run python -m pytest
+```
+
+Suite complète : **12 passed** (definition of done atteinte côté code).
+
+### Questions Q13 – Q18
+
+- **Q13** (métriques par semaine vs verdicts PSI) : _à rédiger_
+- **Q14** (accuracy vs rappel en semaine 3) : _à rédiger_
+- **Q15** (ROC-AUC < 0,5 en semaine 3) : _à rédiger_
+- **Q16** (fiches semaine et type de dérive) : _à rédiger_
+- **Q17** (panne la plus dangereuse, signal intermédiaire) : _à rédiger_
+- **Q18** (actions à déclencher semaines 2 et 3) : _à rédiger_
+
 ## Étapes suivantes
 
 - [x] Étape 3 — semaine 1
 - [x] Étape 4 — semaine 2, Vente Flash
 - [x] Étape 5 — semaine 3
-- [ ] Étape 6 — labels, `evaluate_semaine.py`, 12 tests verts (Q13 – Q18)
+- [x] Étape 6 — labels, `evaluate_semaine.py`, 12 tests verts
 - [ ] Étape 7 — `reports/drift_spec_payguard.md`

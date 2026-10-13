@@ -55,7 +55,13 @@ def evaluer_semaine(semaine: int) -> dict:
     #    (révision module 11 — attention aux divisions par zéro : renvoyer 0.0).
     # 4. pr_auc, roc_auc : depuis les PROBABILITÉS, pas depuis y_pred
     #    (révision module 21 — l'AUC est indépendante du seuil).
-    raise NotImplementedError("À compléter — étape 6 du TP (evaluer_semaine)")
+    y_pred = (proba >= seuil).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+    accuracy = (tp + tn) / len(y_true)
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    rappel = tp / (tp + fn) if (tp + fn) else 0.0
+    pr_auc = float(average_precision_score(y_true, proba))
+    roc_auc = float(roc_auc_score(y_true, proba))
     # -----------------------------------------------------------------------
 
     return {

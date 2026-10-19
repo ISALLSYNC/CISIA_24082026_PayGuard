@@ -43,9 +43,39 @@ auparavant ignoré faute de modèle, s'exécute désormais et échoue en attenda
 
 ### Questions Q1 – Q3
 
-- **Q1** (PR-AUC vs accuracy) : _à rédiger_
-- **Q2** (seuil bas et ratio de coûts) : _à rédiger_
-- **Q3** (28 % d'alertes pour 4,5 % de fraude) : _à rédiger_
+**Q1 (m11) — Pourquoi la PR-AUC plutôt que l'accuracy ?**
+
+Avec 4,5 % de fraude, un modèle qui répond toujours « pas fraude » obtient 95,5 % d'accuracy sans
+attraper une seule fraude : l'accuracy est dominée par la classe majoritaire et ne dit rien de ce
+qui compte. La PR-AUC ne regarde que la classe rare : elle combine la précision (part des alertes
+qui sont de vraies fraudes) et le rappel (part des fraudes attrapées). Sa ligne de base est la
+**prévalence**, soit 0,045 ici, car un modèle aléatoire a une précision égale au taux de fraude à
+tous les niveaux de rappel. En ROC, un modèle aléatoire a autant de vrais positifs que de faux
+positifs en proportion (TPR = FPR), d'où 0,5 quelle que soit la prévalence. Notre PR-AUC de 0,260
+vaut donc environ 6 fois le hasard, alors que la ROC-AUC de 0,852 paraît plus flatteuse.
+
+**Q2 (m21) — Pourquoi un seuil aussi bas (0,03) ?**
+
+Il est rentable de vérifier une transaction dès que le coût attendu d'une fraude ratée dépasse
+celui d'une vérification : p × 50 € > (1 − p) × 2 €, soit p > 2 / 52 ≈ 0,038. Comme une fraude
+ratée coûte 25 fois plus cher qu'une vérification inutile, le seuil optimal est très bas. Le seuil a
+été choisi sur le **jeu de validation** (25 % de la référence), jamais vu à l'entraînement. Le
+rechoisir sur les semaines de production serait malhonnête : on ajusterait le modèle sur les
+données qui servent à l'évaluer, ce qui donnerait des performances trop optimistes. En plus, on
+masquerait la dérive au lieu de la mesurer, et ces labels n'existent de toute façon pas au moment
+de la décision.
+
+**Q3 (m11) — 28 % d'alertes pour 4,5 % de fraude, est-ce défendable ?**
+
+Sur la validation (5 000 transactions), le modèle coûte 41 FN × 50 € + 1 216 FP × 2 € = 4 482 €,
+contre 224 fraudes × 50 € = 11 200 € sans modèle : le compromis divise le coût par 2,5 environ.
+Il attrape 82 % des fraudes au prix d'une précision faible (13 % des alertes sont de vraies
+fraudes). Sur une semaine de 3 000 transactions, cela fait environ 840 dossiers, soit environ 120
+par jour. Ce choix est défendable économiquement, à condition que l'équipe risque ait la capacité
+de traiter ce volume. Pour trancher, il faudrait connaître :
+- la capacité réelle de l'équipe (dossiers traités par analyste et par jour) ;
+- le coût réel d'une vérification et d'une fraude ;
+- la gêne causée aux clients légitimes dont le paiement est retardé.
 
 ## Étape 2 — Implémentation PSI et KS (`scripts/drift_lab.py`)
 
@@ -100,7 +130,16 @@ uv run python -m pytest -k "psi or ks or verdict or table" -v
 
 ### Question Q4
 
-- **Q4** (PSI vs KS, effet de la taille d'échantillon) : _à rédiger_
+**Q4 (m31/m21) — Que dit le PSI que KS ne dit pas, et inversement ?**
+
+Le PSI mesure l'**ampleur** du changement de distribution. C'est une taille d'effet, avec des seuils
+de lecture métier (0,10 / 0,25), qui ne dépend presque pas de la taille de l'échantillon ; il
+indique aussi, bin par bin, où la distribution a bougé. KS répond à une autre question : « l'écart
+observé peut-il être dû au hasard ? ». Sa p-value mesure la **significativité** statistique, pas
+l'importance de l'écart, et le PSI ne fournit pas cette information. Or la significativité dépend de
+la taille des échantillons : avec 20 000 transactions de référence contre 3 000, KS déclare
+significatif un écart minime, sans intérêt métier. C'est le cas de `heure` en semaine 2 : p ≈ 1e-33,
+alors que le PSI vaut 0,087, sous le seuil de surveillance.
 
 ## Étapes 3 à 5 — Audit des entrées, sans labels
 
@@ -124,8 +163,27 @@ Fichiers produits (non versionnés) : `reports/drift_semaine{1,2,3}.csv`,
 
 PSI max = 0,008. Les p-values KS sont dispersées entre 0,09 et 0,97, et aucune n'est inférieure à 0,05.
 
-- **Q5** (PSI max, verdicts, bulletin) : _à rédiger_
-- **Q6** (p-values ≠ 1, tests multiples) : _à rédiger_
+**Q5 — PSI max, verdicts et bulletin de la semaine 1**
+
+Le PSI max vaut 0,008 (`anciennete_client_j`), très loin du seuil de 0,10 : les 5 features sont
+« RAS ». Les distributions d'entrée de la semaine 1 sont identiques à celles de la référence, aux
+fluctuations d'échantillonnage près. Les figures le confirment : les histogrammes se superposent.
+
+> Bulletin semaine 1 — Surveillance des entrées PayGuard : aucune dérive détectée (PSI max = 0,008
+> sur 5 features, seuil d'alerte 0,10). Le modèle travaille sur des données conformes à celles de
+> son entraînement. Aucune action requise. Rappel : les performances réelles (rappel, précision)
+> ne pourront être confirmées qu'à l'arrivée des labels.
+
+**Q6 — Des p-values KS différentes de 1 : est-ce anormal ? Pourquoi ne pas alerter dès p < 0,05 ?**
+
+Non, ce n'est pas anormal. Quand rien n'a changé (sous H₀), la p-value suit une loi uniforme
+entre 0 et 1 : elle vaut **0,5 en moyenne**, pas 1. Les valeurs observées, de 0,085 à 0,974, sont
+donc parfaitement normales. Par construction, un test au seuil de 5 % se trompe une fois sur
+vingt quand il n'y a aucune dérive. Avec 5 features testées chaque semaine, la probabilité d'au
+moins une fausse alerte est de 1 − 0,95⁵ ≈ 23 % par semaine, soit environ 13 fausses alertes par
+an (5 × 52 × 0,05). Alerter sur p < 0,05 provoquerait donc une fatigue d'alerte : l'équipe finirait
+par ignorer les vraies alertes. On décide plutôt sur la taille d'effet (PSI), en corrigeant
+éventuellement le seuil de KS pour les tests multiples (Bonferroni : 0,05 / 5 = 0,01).
 
 ### Semaine 2 — Vente Flash de rentrée (étape 4)
 
